@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Remote LED Button</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; padding: 24px; max-width: 600px; margin: auto; }
+    .btn { font-size: 20px; padding: 14px 20px; border-radius: 12px; border: 0; cursor: pointer; }
+    .on  { background: #e74c3c; color: white; }
+    .off { background: #ddd; }
+    .row { display: flex; gap: 12px; margin-top: 16px; }
+    #status { margin-top: 10px; font-size: 14px; opacity: 0.8; }
+    .card { padding: 16px; border: 1px solid #eee; border-radius: 12px; }
+    code { background: #f6f8fa; padding: 2px 6px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Remote LED Control</h1>
+  <div class="card">
+    <p>Press <strong>ON</strong> to light the LED; press <strong>OFF</strong> to turn it off.</p>
+    <div class="row">
+      <button id="btnOn"  class="btn on">LED ON</button>
+      <button id="btnOff" class="btn off">LED OFF</button>
+    </div>
+    <div id="status">Connecting…</div>
+  </div>
+
+  <!-- Paho MQTT over WebSockets -->
+  <script src="https://unpkg.com/paho-mqtt@1.1.0/paho-mqtt-min.js"></script>
+  <script>
+    // ===== CONFIG =====
+    const WS_HOST  = "test.mosquitto.org";   // public broker
+    const WS_PORT  = 8080;                   // WebSocket port
+    const WS_PATH  = "/mqtt";                // WebSocket path
+    const TOPIC    = "demo/bracelet/led/TT1000_7b3a29"; // <-- make unique!
+
+    const statusEl = document.getElementById('status');
+    const btnOn  = document.getElementById('btnOn');
+    const btnOff = document.getElementById('btnOff');
+
+    function setStatus(text) { statusEl.textContent = text; }
+
+    // Create MQTT client (random clientId to avoid clashes)
+    const clientId = "webclient-" + Math.random().toString(16).slice(2);
+    const client = new Paho.MQTT.Client(WS_HOST, WS_PORT, WS_PATH, clientId);
+
+    client.onConnectionLost = (resp) => setStatus("Disconnected: " + (resp.errorMessage || "unknown"));
+    client.onMessageArrived = (msg) => {
+      // (Optional) If you also want the page to reflect external changes
+      // console.log("Arrived", msg.topic, msg.payloadString);
+    };
+
+    function connect() {
+      setStatus("Connecting to broker…");
+      client.connect({
+        timeout: 6,
+        useSSL: false,   // test.mosquitto.org WS is not SSL on :8080 (there is a TLS port 8081 if you want)
+        onSuccess: () => setStatus("Connected. Topic: " + TOPIC),
+        onFailure: (err) => setStatus("Connect failed: " + (err.errorMessage || "unknown"))
+      });
+    }
+
+    function publish(value) {
+      if (!client.isConnected()) { setStatus("Not connected."); return; }
+      const msg = new Paho.MQTT.Message(value);
+      msg.destinationName = TOPIC;
+      msg.retained = true; // keep last state for late subscribers
+      client.send(msg);
+      setStatus("Sent: " + value);
+    }
+
+    btnOn.addEventListener('click',  () => publish("1"));
+    btnOff.addEventListener('click', () => publish("0"));
+
+    connect();
+  </script>
+</body>
+</html>
