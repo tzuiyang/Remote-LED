@@ -62,6 +62,8 @@
     // Hook up your buttons:
     // <button onclick="publish('1')">LED ON</button>
     // <button onclick="publish('0')">LED OFF</button>
+    document.getElementById('btnOn').addEventListener('click',  () => publish('1'));
+    document.getElementById('btnOff').addEventListener('click', () => publish('0'));
   </script>
 
 </body>
