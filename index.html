@@ -29,51 +29,40 @@
   <!-- Paho MQTT over WebSockets -->
   <script src="https://unpkg.com/paho-mqtt@1.1.0/paho-mqtt-min.js"></script>
   <script>
-    // ===== CONFIG =====
+    // ===== CHANGE THESE THREE =====
     const TOPIC    = "tzuiyang/led/control"; // make it unique (your name helps)
     const HOST     = "test.mosquitto.org";   // public test broker
     const PORT     = 8081;                   // secure WebSocket port
     const PATH     = "/mqtt";                // WS path for Mosquitto
-
-    const statusEl = document.getElementById('status');
-    const btnOn  = document.getElementById('btnOn');
-    const btnOff = document.getElementById('btnOff');
-
-    function setStatus(text) { statusEl.textContent = text; }
-
-    // Create MQTT client (random clientId to avoid clashes)
-    const clientId = "webclient-" + Math.random().toString(16).slice(2);
-    const client = new Paho.MQTT.Client(WS_HOST, WS_PORT, WS_PATH, clientId);
-
-    client.onConnectionLost = (resp) => setStatus("Disconnected: " + (resp.errorMessage || "unknown"));
-    client.onMessageArrived = (msg) => {
-      // (Optional) If you also want the page to reflect external changes
-      // console.log("Arrived", msg.topic, msg.payloadString);
-    };
-
-    function connect() {
-      setStatus("Connecting to broker…");
-      client.connect({
-        timeout: 6,
-        useSSL: false,   // test.mosquitto.org WS is not SSL on :8080 (there is a TLS port 8081 if you want)
-        onSuccess: () => setStatus("Connected. Topic: " + TOPIC),
-        onFailure: (err) => setStatus("Connect failed: " + (err.errorMessage || "unknown"))
-      });
-    }
-
-    function publish(value) {
-      if (!client.isConnected()) { setStatus("Not connected."); return; }
-      const msg = new Paho.MQTT.Message(value);
+  
+    const clientId = "web-" + Math.random().toString(16).slice(2);
+    const client   = new Paho.MQTT.Client(HOST, PORT, PATH, clientId);
+  
+    function status(s){ document.getElementById("status").textContent = s; }
+  
+    client.onConnectionLost = (r)=> status("Disconnected: " + (r.errorMessage||""));
+    client.onMessageArrived = (m)=> status("Broker echoed: " + m.payloadString);
+  
+    client.connect({
+      useSSL: true,         // IMPORTANT on GitHub Pages
+      timeout: 6,
+      onSuccess: () => status("Connected to " + HOST + " (topic: " + TOPIC + ")"),
+      onFailure: (e) => status("Connect failed: " + (e.errorMessage||""))
+    });
+  
+    function publish(val){
+      if(!client.isConnected()){ status("Not connected"); return; }
+      const msg = new Paho.MQTT.Message(val);
       msg.destinationName = TOPIC;
-      msg.retained = true; // keep last state for late subscribers
+      msg.retained = true;                 // so the ESP32 gets the latest state after reconnect
       client.send(msg);
-      setStatus("Sent: " + value);
+      status("Sent: " + val);
     }
-
-    btnOn.addEventListener('click',  () => publish("1"));
-    btnOff.addEventListener('click', () => publish("0"));
-
-    connect();
+  
+    // Hook up your buttons:
+    // <button onclick="publish('1')">LED ON</button>
+    // <button onclick="publish('0')">LED OFF</button>
   </script>
+
 </body>
 </html>
