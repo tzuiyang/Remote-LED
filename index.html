@@ -26,44 +26,44 @@
     <div id="status">Connecting…</div>
   </div>
 
-  <!-- Paho MQTT over WebSockets -->
   <script src="https://unpkg.com/paho-mqtt@1.1.0/paho-mqtt-min.js"></script>
   <script>
-    // ===== CHANGE THESE THREE =====
-    const TOPIC    = "tzuiyang/led/control"; // make it unique (your name helps)
-    const HOST     = "test.mosquitto.org";   // public test broker
-    const PORT     = 8081;                   // secure WebSocket port
-    const PATH     = "/mqtt";                // WS path for Mosquitto
+    // ---- CONFIG ----
+    const HOST  = "broker.hivemq.com";
+    const PORT  = 8884;          // secure WebSocket
+    const PATH  = "/mqtt";
+    const TOPIC = "tzuiyang/led/control";
   
     const clientId = "web-" + Math.random().toString(16).slice(2);
     const client   = new Paho.MQTT.Client(HOST, PORT, PATH, clientId);
   
-    function status(s){ document.getElementById("status").textContent = s; }
+    const statusEl = document.getElementById("status");
+    function status(s){ statusEl.textContent = s; console.log(s); }
   
     client.onConnectionLost = (r)=> status("Disconnected: " + (r.errorMessage||""));
-    client.onMessageArrived = (m)=> status("Broker echoed: " + m.payloadString);
+    client.onMessageArrived = (m)=> console.log("Arrived:", m.topic, m.payloadString);
   
     client.connect({
-      useSSL: true,         // IMPORTANT on GitHub Pages
-      timeout: 6,
-      onSuccess: () => status("Connected to " + HOST + " (topic: " + TOPIC + ")"),
-      onFailure: (e) => status("Connect failed: " + (e.errorMessage||""))
+      useSSL: true,
+      timeout: 8,
+      keepAliveInterval: 30,
+      reconnect: true,              // auto-reconnect if dropped
+      onSuccess: () => status(`Connected to ${HOST} (topic: ${TOPIC})`),
+      onFailure: (e) => status("Connect failed: " + (e.errorMessage || "unknown"))
     });
   
     function publish(val){
       if(!client.isConnected()){ status("Not connected"); return; }
       const msg = new Paho.MQTT.Message(val);
       msg.destinationName = TOPIC;
-      msg.retained = true;                 // so the ESP32 gets the latest state after reconnect
+      msg.retained = true;          // so ESP32 gets latest state on reconnect
       client.send(msg);
       status("Sent: " + val);
     }
   
-    // Hook up your buttons:
-    // <button onclick="publish('1')">LED ON</button>
-    // <button onclick="publish('0')">LED OFF</button>
-    document.getElementById('btnOn').addEventListener('click',  () => publish('1'));
-    document.getElementById('btnOff').addEventListener('click', () => publish('0'));
+    // Hook up buttons
+    document.getElementById('btnOn') .addEventListener('click', ()=> publish("1"));
+    document.getElementById('btnOff').addEventListener('click', ()=> publish("0"));
   </script>
 
 </body>
