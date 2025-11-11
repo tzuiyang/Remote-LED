@@ -30,10 +30,10 @@
   <script src="https://unpkg.com/paho-mqtt@1.1.0/paho-mqtt-min.js"></script>
   <script>
     // ===== CONFIG =====
-    const WS_HOST  = "test.mosquitto.org";   // public broker
-    const WS_PORT  = 8080;                   // WebSocket port
-    const WS_PATH  = "/mqtt";                // WebSocket path
-    const TOPIC    = "demo/bracelet/led/TT1000_7b3a29"; // <-- make unique!
+    const TOPIC    = "tzuiyang/led/control"; // make it unique (your name helps)
+    const HOST     = "test.mosquitto.org";   // public test broker
+    const PORT     = 8081;                   // secure WebSocket port
+    const PATH     = "/mqtt";                // WS path for Mosquitto
 
     const statusEl = document.getElementById('status');
     const btnOn  = document.getElementById('btnOn');
