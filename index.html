@@ -3,68 +3,70 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Remote LED Button</title>
+  <title>Nano ESP32 LED Control</title>
   <style>
-    body { font-family: system-ui, Arial, sans-serif; padding: 24px; max-width: 600px; margin: auto; }
-    .btn { font-size: 20px; padding: 14px 20px; border-radius: 12px; border: 0; cursor: pointer; }
-    .on  { background: #e74c3c; color: white; }
-    .off { background: #ddd; }
-    .row { display: flex; gap: 12px; margin-top: 16px; }
-    #status { margin-top: 10px; font-size: 14px; opacity: 0.8; }
-    .card { padding: 16px; border: 1px solid #eee; border-radius: 12px; }
-    code { background: #f6f8fa; padding: 2px 6px; border-radius: 6px; }
+    body { font-family: system-ui, sans-serif; margin: 2rem; }
+    .card { max-width: 520px; padding: 1rem; border: 1px solid #ddd; border-radius: 14px; }
+    button { padding: 0.7rem 1rem; margin-right: .5rem; border-radius: 10px; border: 1px solid #ccc; cursor: pointer; }
+    #status { font-weight: 700; }
+    code { background:#f6f6f6; padding: .15rem .35rem; border-radius: 6px; }
   </style>
 </head>
 <body>
-  <h1>Remote LED Control</h1>
   <div class="card">
-    <p>Press <strong>ON</strong> to light the LED; press <strong>OFF</strong> to turn it off.</p>
-    <div class="row">
-      <button id="btnOn"  class="btn on">LED ON</button>
-      <button id="btnOff" class="btn off">LED OFF</button>
-    </div>
-    <div id="status">Connecting…</div>
+    <h1>Nano ESP32 LED Control</h1>
+    <p>Broker: <code>wss://test.mosquitto.org:8081</code></p>
+    <p>Topic (control): <code>danielyang/nano32/led/control</code></p>
+    <p>Topic (state): <code>danielyang/nano32/led/state</code></p>
+    <p>Connection: <span id="conn">...</span></p>
+    <p>Status: <span id="status">unknown</span></p>
+    <p>
+      <button onclick="sendCmd('ON')">ON</button>
+      <button onclick="sendCmd('OFF')">OFF</button>
+      <button onclick="sendCmd('TOGGLE')">TOGGLE</button>
+    </p>
   </div>
 
-  <script src="https://unpkg.com/paho-mqtt@1.1.0/paho-mqtt-min.js"></script>
+  <!-- MQTT.js (browser build) -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <script>
-    // ---- CONFIG ----
-    const HOST  = "broker.hivemq.com";
-    const PORT  = 8884;          // secure WebSocket
-    const PATH  = "/mqtt";
-    const TOPIC = "tzuiyang/led/control";
-  
-    const clientId = "web-" + Math.random().toString(16).slice(2);
-    const client   = new Paho.MQTT.Client(HOST, PORT, PATH, clientId);
-  
-    const statusEl = document.getElementById("status");
-    function status(s){ statusEl.textContent = s; console.log(s); }
-  
-    client.onConnectionLost = (r)=> status("Disconnected: " + (r.errorMessage||""));
-    client.onMessageArrived = (m)=> console.log("Arrived:", m.topic, m.payloadString);
-  
-    client.connect({
-      useSSL: true,
-      timeout: 8,
-      keepAliveInterval: 30,
-      reconnect: true,              // auto-reconnect if dropped
-      onSuccess: () => status(`Connected to ${HOST} (topic: ${TOPIC})`),
-      onFailure: (e) => status("Connect failed: " + (e.errorMessage || "unknown"))
-    });
-  
-    function publish(val){
-      if(!client.isConnected()){ status("Not connected"); return; }
-      const msg = new Paho.MQTT.Message(val);
-      msg.destinationName = TOPIC;
-      msg.retained = true;          // so ESP32 gets latest state on reconnect
-      client.send(msg);
-      status("Sent: " + val);
-    }
-  
-    // Hook up buttons
-    document.getElementById('btnOn') .addEventListener('click', ()=> publish("1"));
-    document.getElementById('btnOff').addEventListener('click', ()=> publish("0"));
-  </script>
+    const CONTROL = 'danielyang/nano32/led/control';
+    const STATE   = 'danielyang/nano32/led/state';
 
+    // Connect over secure WebSockets (required on HTTPS pages)
+    const clientId = 'web-' + Math.random().toString(16).slice(2);
+    const client = mqtt.connect('wss://test.mosquitto.org:8081', {
+      clientId,
+      // clean session true is fine here; we also read retained state
+      protocolVersion: 4, // MQTT 3.1.1
+      keepalive: 30,
+      reconnectPeriod: 1500
+    });
+
+    const connEl = document.getElementById('conn');
+    const statusEl = document.getElementById('status');
+
+    client.on('connect', () => {
+      connEl.textContent = 'connected';
+      client.subscribe(STATE, { qos: 1 }, (err) => {
+        if (!err) console.log('subscribed to', STATE);
+      });
+    });
+
+    client.on('reconnect', () => { connEl.textContent = 'reconnecting...'; });
+    client.on('close', () => { connEl.textContent = 'disconnected'; });
+    client.on('error', (e) => { connEl.textContent = 'error'; console.error(e); });
+
+    client.on('message', (topic, payload) => {
+      if (topic === STATE) {
+        const txt = payload.toString().trim().toUpperCase();
+        statusEl.textContent = (txt === 'ON' || txt === 'OFF') ? txt : ('state: ' + txt);
+      }
+    });
+
+    window.sendCmd = (cmd) => {
+      client.publish(CONTROL, cmd, { qos: 1, retain: false });
+    };
+  </script>
 </body>
 </html>
